@@ -1,0 +1,138 @@
+buildscript {
+	ext {
+		xsdJaxbVersion = '2.2.11'
+	}
+	repositories {
+		jcenter()
+		mavenCentral()
+	}
+	dependencies {
+		classpath 'no.nils:wsdl2java:0.10'
+	}
+}
+
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin :'no.nils.wsdl2java'
+
+
+repositories {
+	mavenCentral()
+}
+
+sourceSets.main.java.srcDirs "src/generated-sources/java"
+
+
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
+
+configurations {
+	jaxb
+}
+
+dependencies {
+	//Libraries used for generate xsd
+	jaxb (
+			"com.sun.xml.bind:jaxb-core:${xsdJaxbVersion}",
+			"com.sun.xml.bind:jaxb-xjc:${xsdJaxbVersion}",
+			"com.sun.xml.bind:jaxb-impl:${xsdJaxbVersion}",
+			'javax.xml.bind:jaxb-api:2.3.1'
+	)
+
+	//Removed in Jdk 1.8
+	runtime group: 'com.sun.xml.ws', name: 'rt', version: '2.3.2'
+
+
+	//Necesary for generate wsdl
+	wsdl2java 'com.sun.xml.bind:jaxb-xjc:2.3.2'
+	wsdl2java 'javax.xml.bind:jaxb-api:2.3.1'
+	wsdl2java 'javax.xml.ws:jaxws-api:2.3.1'
+	wsdl2java 'org.apache.cxf:cxf-rt-wsdl:3.3.1'
+	wsdl2java 'javax.jws:javax.jws-api:1.1'
+
+	//Necesary for runtime
+	implementation 'com.sun.xml.bind:jaxb-xjc:2.3.2'
+	implementation 'javax.xml.bind:jaxb-api:2.3.1'
+	implementation 'javax.xml.ws:jaxws-api:2.3.1'
+	implementation 'org.apache.cxf:cxf-rt-wsdl:3.3.1'
+	implementation 'javax.jws:javax.jws-api:1.1'
+
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.4.2'
+	testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.4.2'
+
+}
+test {
+	useJUnitPlatform()
+}
+
+
+wsdl2javaExt {
+	cxfVersion = "3.3.1"
+}
+
+wsdl2java{
+	generatedWsdlDir = file("${projectDir}/generated-wsdl/java")
+	wsdlDir=file("${projectDir}/src/main/resources/wsdl/maullin")
+	wsdlsToGenerate = [
+			[file("${projectDir}/src/main/resources/wsdl/maullin/CrSeed.jws")],
+			[file("${projectDir}/src/main/resources/wsdl/maullin/GetTokenFromSeed.jws")],
+			[file("${projectDir}/src/main/resources/wsdl/maullin/QueryEstDte.jws")],
+			[file("${projectDir}/src/main/resources/wsdl/maullin/QueryEstDteAv.jws")],
+			[file("${projectDir}/src/main/resources/wsdl/maullin/QueryEstUp.jws")],
+			[file("${projectDir}/src/main/resources/wsdl/maullin/wsDTECorreo.jws")]
+	]
+}
+
+task xsd2java {
+	System.setProperty('javax.xml.accessExternalSchema', 'all')
+	def jaxbTargetDir = file("${projectDir}/generated-xsd/java")
+
+	doLast {
+		jaxbTargetDir.mkdirs()
+
+		ant.taskdef(
+				name: 'xjc',
+				classname: 'com.sun.tools.xjc.XJCTask',
+				classpath: configurations.jaxb.asPath
+		)
+		ant.jaxbTargetDir = jaxbTargetDir
+
+		ant.xjc(
+				destdir: '${jaxbTargetDir}',
+				package: 'io._focuson.jaxb.dte'
+		) {
+			schema(dir: "src/main/resources/xsd/dte/", includes: '*.xsd')
+		}
+
+		ant.xjc(
+				destdir: '${jaxbTargetDir}',
+				package: 'io._focuson.jaxb.boleta'
+		) {
+			schema(dir: "src/main/resources/xsd/boleta/", includes: '*.xsd')
+		}
+
+		ant.xjc(
+				destdir: '${jaxbTargetDir}',
+				package: 'io._focuson.jaxb.extra'
+		) {
+			schema(dir: "src/main/resources/xsd/extra/", includes: '*.xsd')
+		}
+
+		ant.xjc(
+				destdir: '${jaxbTargetDir}',
+				package: 'io._focuson.jaxb.librocv'
+		) {
+			schema(dir: "src/main/resources/xsd/librocv/", includes: 'LibroCVS_v10.xsd')
+		}
+
+		ant.xjc(
+				destdir: '${jaxbTargetDir}',
+				package: 'io._focuson.jaxb.libroguia'
+		) {
+			schema(dir: "src/main/resources/xsd/libroguia/", includes: '*.xsd')
+		}
+	}
+}
+
+compileJava.dependsOn xsd2java
+compileJava.dependsOn wsdl2java
